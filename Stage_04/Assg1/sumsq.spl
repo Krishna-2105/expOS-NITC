@@ -1,0 +1,9 @@
+alias counter R0;
+alias sum R1;
+counter=0;
+sum=0;
+while(counter<20) do
+counter=counter+1;
+sum=sum+counter*counter;
+endwhile;
+print sum;
