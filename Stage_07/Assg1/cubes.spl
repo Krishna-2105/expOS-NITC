@@ -1,0 +1,10 @@
+alias num R0;
+alias cube R1;
+num=1;
+alias limit R2;
+limit=5;
+while(num<=limit) do
+	cube=num*num*num;
+	print cube;
+	num=num+1;
+endwhile;
