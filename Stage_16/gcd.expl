@@ -1,0 +1,32 @@
+decl
+	int gcd(int a,int b);
+enddecl
+
+int gcd(int a,int b){
+	decl
+	  int temp;
+	enddecl
+	begin
+	if(a==0) then
+		temp=b;	
+	else
+		temp=gcd(b%a,a);
+	endif;
+	return temp;
+	end
+}
+
+int main(){
+	decl
+	  int temp,a,b,res;
+	enddecl
+	begin
+	temp=exposcall("Read",-1,a);
+	temp=exposcall("Read",-1,b);
+	breakpoint;
+	res=gcd(a,b);
+	temp=exposcall("Write",-2,res);
+	return 0;
+	end
+
+}
