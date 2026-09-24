@@ -1,0 +1,63 @@
+alias functionNum R1;
+alias currentPID R2;
+
+// Acquire Disk
+if(functionNum == 3) then
+	while([DISK_STATUS_TABLE + 0] == 1) do
+		[PROCESS_TABLE + currentPID*16 + 4] = WAIT_DISK;
+		multipush(R1, R2);
+		call MOD_5;
+		multipop(R1, R2);
+	endwhile;
+	[DISK_STATUS_TABLE + 0] = 1;
+	[DISK_STATUS_TABLE + 4] = currentPID;
+
+	return;
+endif;
+
+
+
+// Acquire Terminal :
+if(functionNum == 8) then
+	while([TERMINAL_STATUS_TABLE+0] == 1) do
+		[PROCESS_TABLE + currentPID*16 + 4] = WAIT_TERMINAL;
+		multipush(R1, R2);
+		call MOD_5;
+		multipop(R1, R2);
+	endwhile;
+	
+	[TERMINAL_STATUS_TABLE + 0] = 1;
+	[TERMINAL_STATUS_TABLE + 1] = currentPID;
+	return;
+endif;
+
+// Release Terminal
+if(functionNum == 9) then
+	if(currentPID != [TERMINAL_STATUS_TABLE + 1]) then
+		alias retVal R0;
+		retVal = -1;
+		return;
+
+	else
+		[TERMINAL_STATUS_TABLE + 0] = 0;
+		alias i R3;
+		i = 0;
+		while(i<16) do
+			alias pid R4;
+			pid = [PROCESS_TABLE + 16*i + 1];
+			if( pid>0 && pid<16) then
+				if([PROCESS_TABLE + 16*i + 4] == WAIT_TERMINAL) then
+					[PROCESS_TABLE + 16*i + 4] = READY;
+				endif;
+			endif;
+			i = i + 1;
+		endwhile;
+		alias retVal R0;
+		retVal = 0;
+		return;
+	endif;
+else
+alias retVal R0;
+retVal = -1;
+return;
+endif;
