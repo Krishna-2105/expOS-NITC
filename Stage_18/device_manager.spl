@@ -1,0 +1,72 @@
+// Module 4 - Device manager - Terminal and Disk
+alias functionNum R1;
+alias currentPID R2;
+
+// Disk Store :
+if(functionNum == 1) then
+	R1 = 1;
+endif;
+
+// Disk load :
+if(functionNum == 2) then
+	alias pageNumber R3;
+	alias blockNumber R4;
+	multipush(R1, R2, R3, R4);
+	R1 = 3;
+	R2 = R2;
+	call MOD_0;
+
+	multipop(R1, R2, R3, R4);
+	[DISK_STATUS_TABLE + 1] = 0;
+	[DISK_STATUS_TABLE + 2] = pageNumber;
+	[DISK_STATUS_TABLE + 3] = blockNumber;
+	load(pageNumber, blockNumber);
+	[PROCESS_TABLE + currentPID*16 + 4] = WAIT_DISK;
+	call MOD_5;
+	return;
+	
+endif;
+
+
+// Terminal Write :
+if(functionNum == 3) then
+	alias word R3;
+	multipush(R1, R2, R3);
+	functionNum = 8;
+	currentPID = currentPID;
+	
+	call MOD_0;
+
+	multipop(R1, R2, R3);
+
+	print word;
+	multipush(R1, R2, R3);
+	functionNum = 9;
+	currentPID = currentPID;
+	call MOD_0;
+	multipop(R1, R2, R3);
+	return;
+endif;
+
+//Terminal Read 
+if(functionNum == 4) then
+	alias word R3;
+	multipush(R1, R2, R3);
+	functionNum = 8;
+	currentPID = currentPID;
+	
+	call MOD_0;
+	multipop(R1, R2, R3);
+	read;
+
+	[PROCESS_TABLE + 16*currentPID + 4] = WAIT_TERMINAL;
+
+	multipush(R1, R2, R3);
+	call MOD_5;
+	multipop(R1, R2, R3);
+	alias phyAddr R4;
+	phyAddr = [PAGE_TABLE_BASE + currentPID*20 + 2*word/512]*512 + word%512;
+	[phyAddr] = [PROCESS_TABLE + 16*currentPID + 8];
+	return;
+
+endif;
