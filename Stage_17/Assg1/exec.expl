@@ -1,0 +1,15 @@
+int main()
+{
+decl
+	str a;
+	int b;
+	str c;
+enddecl
+begin
+	c="Type fname:";
+	b=exposcall("Write",-2,c);
+	b=exposcall("Read",-1,a);
+	b=exposcall("Exec",a);
+	return 0;
+end
+}
