@@ -1,0 +1,104 @@
+// Memory manager (MOD_2)
+
+alias fnNumber R1; 
+
+// Get Free Page : 
+if(fnNumber == 1) then
+
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] + 1;
+	
+	while([SYSTEM_STATUS_TABLE + 2] == 0) do 
+		[PROCESS_TABLE + 16*[SYSTEM_STATUS_TABLE + 1] + 4] = WAIT_MEM;
+		multipush(R1);
+		call MOD_5;
+		multipop(R1);
+	endwhile;	
+	[SYSTEM_STATUS_TABLE + 3] = [SYSTEM_STATUS_TABLE + 3] - 1;
+	[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] - 1;
+
+	alias memFreeIndex R2;
+
+	memFreeIndex = 76;
+
+	while([MEMORY_FREE_LIST + memFreeIndex] != 0 && memFreeIndex <= 127) do
+
+		memFreeIndex = memFreeIndex + 1;
+	endwhile;
+	[MEMORY_FREE_LIST + memFreeIndex] = 1;
+
+	R0 = memFreeIndex;
+	breakpoint;
+	return;
+
+endif;
+
+// Release Page:
+if(fnNumber == 2) then
+	alias pageNum R2;
+	[MEMORY_FREE_LIST + pageNum] = [MEMORY_FREE_LIST + pageNum] -1;
+	if([MEMORY_FREE_LIST + pageNum] == 0) then
+		[SYSTEM_STATUS_TABLE + 2] = [SYSTEM_STATUS_TABLE + 2] + 1;
+	endif;
+	
+	alias i R3;
+	i = 1;
+	while(i < 16) do
+		if([PROCESS_TABLE + 16*i + 4] == WAIT_MEM) then 
+			if(([PROCESS_TABLE + 16*i + 1]) > 0 && ([PROCESS_TABLE + 16*i + 1] < 16)) then
+				[PROCESS_TABLE + 16*i + 4] = READY;	
+			endif;
+		endif;
+	i = i + 1;
+	endwhile;
+	breakpoint;
+	return;
+endif;
+
+// Release Block :
+if(fnNumber == 4) then
+	alias blockNum R2;
+	alias currentPID R3;
+	
+	[DISK_FREE_LIST + blockNum] = [DISK_FREE_LIST + blockNum] -1;
+	return;
+endif;
+
+// Get Code Page :
+if(fnNumber == 5) then
+	alias blockNum R2; 
+	alias i R3;
+	alias j R4;
+	alias pageNo R5;
+	i=0;
+	while(i<15) do
+		j=4;
+		while(j<8) do
+		if([DISK_MAP_TABLE + 10*i + j] == blockNum) then
+			pageNo = [PAGE_TABLE_BASE + 20*i + 8 + 2*(j-4)];
+			if(pageNo != -1) then
+				[MEMORY_FREE_LIST + pageNo] = [MEMORY_FREE_LIST + pageNo] + 1;
+				R0 = pageNo;
+				return;	
+			endif;
+		endif;
+	j = j + 1;
+	endwhile;
+	i = i + 1;
+	endwhile;
+	multipush(R1, R2);
+	R1 = 1;
+	call MOD_2;
+	breakpoint;
+	pageNo = R0;
+	multipop(R1, R2);
+	multipush(R1, R2, R5);
+	R1 = 2;
+	R4 = R2;
+	R2 = [SYSTEM_STATUS_TABLE + 1];
+	R3 = pageNo;
+	breakpoint;
+	call MOD_4;
+	multipop(R1, R2, R5);
+	R0 = pageNo;
+	return;	
+endif;
