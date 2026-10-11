@@ -1,0 +1,46 @@
+type
+  list{
+    int data;
+    list next;
+  }
+endtype
+
+decl
+   list head, node, tnode;
+enddecl
+
+int main(){
+decl
+  int temp, n, x, i;
+enddecl
+  begin
+  temp = exposcall("Write", -2, "Enter N");
+  breakpoint;
+  temp = exposcall("Read", -1, n);
+  breakpoint;
+  temp = exposcall("Heapset");
+  breakpoint;
+  head = exposcall("Alloc", 2);
+  breakpoint;
+  tnode = head;
+  i=0;
+  while(i<n) do
+    node = exposcall("Alloc", 2); 
+    temp = exposcall("Read", -1, x);
+    node.data = x;
+    tnode.next = node;
+    tnode = node;
+    i = i + 1;
+  endwhile;
+  temp = exposcall("Write", -2, "Linked list");
+  i=0;
+  head = head.next;
+  while(i<n) do
+    temp = exposcall("Write", -2, head.data);
+    head = head.next;
+  i = i + 1;
+  endwhile;
+  breakpoint;
+  return 0;
+  end
+}
