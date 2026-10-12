@@ -1,0 +1,100 @@
+//Process Manager (MOD 1)
+
+alias fnNumber R1;
+alias currentPID R2;
+
+// GET PCB Entry
+if(fnNumber == 1) then
+	alias PID R0;
+	
+	while([PROCESS_TABLE + PID*16 + 4] != TERMINATED) do
+		PID = PID + 1;
+	endwhile;
+	if(PID > 15) then
+		PID = -1;
+		return;
+	endif;
+	[PROCESS_TABLE + PID*16 + 1] = PID;
+	[PROCESS_TABLE + PID*16 + 4] = ALLOCATED;
+	[PROCESS_TABLE + PID*16 + 14] = PAGE_TABLE_BASE + 20*PID;
+	[PROCESS_TABLE + PID*16 + 15] = 10;
+	return;
+
+endif;
+
+
+
+// FREE USER AREA PAGE
+if(fnNumber == 2) then
+	alias userAreaPage R3;
+	userAreaPage = [PROCESS_TABLE + 16*currentPID + 11];
+	multipush(R1, R2, R3);
+	R1 = 2;
+	R2 = userAreaPage;
+	breakpoint;
+	call MOD_2;
+	multipop(R1, R2, R3);
+	return;
+endif;
+
+// EXIT PROCESS
+if(fnNumber == 3) then
+	multipush(R1, R2);
+	R1 = 4;
+	R2 = currentPID;
+	call MOD_1;
+	multipop(R1, R2);
+	breakpoint;
+	multipush(R1, R2);
+	R1 = 2;
+	R2 = currentPID;
+	breakpoint;
+	call MOD_1;
+	multipop(R1, R2);
+	[PROCESS_TABLE + (16*currentPID) + 4] = TERMINATED;
+	return;
+endif;
+
+// FREE PAGE TABLE
+if(fnNumber == 4) then
+	
+	[PTBR + 0] = -1;
+	[PTBR + 1] = "0000";	
+	[PTBR + 2] = -1;
+	[PTBR + 3] = "0000";
+
+	alias i R5;
+	alias pageNum R4;
+	i = 1;
+
+	while(i<(PTLR-1)) do
+		pageNum = [PTBR + 2 + 2*i];
+		if(pageNum!=-1) then
+			multipush(R1, R2, R3, R4);
+			R1 = 2;
+			R2 = pageNum;
+			call MOD_2;
+			multipop(R1, R2, R3, R4);
+			[PTBR + 2 + 2*i] = -1;
+			[PTBR + 2 + 2*i + 1] = "0000";	
+		endif;
+	i = i + 1;
+	endwhile;
+	i=2;
+	while(i<10) do
+	if([DISK_MAP_TABLE + currentPID*10 + i] != -1) then
+		if(i<4 || i>7) then
+			multipush(R1, R2, R4, R5);
+			R1 = 4;
+			R3 = currentPID;
+			R2 = [DISK_MAP_TABLE + currentPID*10 + i];
+			call MOD_2;
+			multipop(R1, R2, R4, R5);
+		endif;
+		[DISK_MAP_TABLE + currentPID*10 + i] = -1;
+	endif;
+	i = i + 1;
+	endwhile;
+	return;
+
+endif;
