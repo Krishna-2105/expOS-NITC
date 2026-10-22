@@ -1,0 +1,29 @@
+decl
+int a;
+enddecl
+
+int main(){
+decl
+  int temp;
+  str fName;
+enddecl
+begin
+  temp = exposcall("Write", -2, "File name:");
+  temp = exposcall("Read", -1, fName);
+  temp = exposcall("Delete", fName);
+  if(temp == 0) then
+    temp = exposcall("Write", -2, "Success");
+  else
+    if(temp == -1) then
+      temp = exposcall("Write", -2, "Perm Denied");
+    else
+      if(temp == -2) then
+        temp = exposcall("Write", -2, "File open");
+      endif;
+    endif;
+    
+  endif;
+  
+  return 0;
+end
+}
