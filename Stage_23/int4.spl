@@ -1,0 +1,174 @@
+//Create and Delete Calls
+
+alias userSP R1;
+userSP = SP;
+
+alias currPID R2;
+currPID = [SYSTEM_STATUS_TABLE + 1];
+
+alias procTab R3;
+procTab = PROCESS_TABLE + 16*currPID;
+
+[procTab + 13] = SP;
+SP = [procTab + 11]*512 -1;
+
+alias syscall R4;
+syscall = [[PTBR + 2*(userSP -5)/512]*512 + (userSP-5)%512];
+
+[procTab + 9] = syscall;
+
+if(syscall == 1) then
+	alias filename R5;
+	alias permission R6;
+
+	filename = [[PTBR + 2*(userSP -4)/512]*512 + (userSP-4)%512];
+	permission = [[PTBR + 2*(userSP -3)/512]*512 + (userSP-3)%512];
+ 
+	alias i R7;
+	i=1;
+	while(i<MAX_FILE_NUM) do
+		if([INODE_TABLE + i*16 + 1] == filename) then
+			R11 = 0;
+			goto retLabel;
+		endif; 
+		i = i + 1;
+	endwhile;
+	i = 1;
+	while(i<MAX_FILE_NUM) do
+		if([INODE_TABLE + i*16 + 1] == -1) then
+			break;
+		endif;
+		i = i + 1;
+	endwhile;
+	if(i == MAX_FILE_NUM) then
+		R11 = -1;
+		goto retLabel;
+	endif;
+
+	alias inodeEntry R8;
+	inodeEntry = INODE_TABLE + 16*i;
+	[inodeEntry + 1] = filename;
+	[inodeEntry + 2] = 0;
+	[inodeEntry + 0] = DATA;
+	[inodeEntry + 8] = -1;
+	[inodeEntry + 9] = -1;
+	[inodeEntry + 10] = -1;
+	[inodeEntry + 11] = -1;
+	[inodeEntry + 3] = [procTab + 3];
+	[inodeEntry + 4] = permission;
+
+	alias rootEntry R9;
+	rootEntry = ROOT_FILE + 8*i;
+	[rootEntry + 0] = filename;
+	[rootEntry + 1] = 0;
+	[rootEntry + 2] = DATA;
+	[rootEntry + 3] = [USER_TABLE + 2*[procTab + 3]];
+	[rootEntry + 4] = permission;
+
+	R11 = 0;
+	goto retLabel;
+endif;
+
+if(syscall == 4) then
+	alias filename R5;
+
+	filename = [[PTBR + 2*(userSP -4)/512]*512 + (userSP-4)%512];
+
+	alias i R6;
+	i=1;
+	while(i<MAX_FILE_NUM) do
+		if([INODE_TABLE + i*16 + 1] == filename) then
+			break;  
+		endif;
+		i = i + 1;
+	endwhile;
+
+	if(i == MAX_FILE_NUM) then
+		R11 = 0;
+		goto retLabel;
+	endif;
+
+	alias inodeIndex R7;
+	alias inodeEntry R8;
+	inodeIndex = i;
+	inodeEntry = INODE_TABLE + 16*i;
+	if([inodeEntry] != DATA) then 
+		R11 = -1;
+		goto retLabel;
+	endif;
+
+	if([inodeEntry + 4] == EXCLUSIVE) then
+		if([inodeEntry + 3] != [SYSTEM_STATUS_TABLE + 0] && [SYSTEM_STATUS_TABLE] != 1) then
+			R11 = -1;
+			goto retLabel;
+		endif;
+	endif;
+
+	multipush(R1, R2, R3, R4, R5,  R7, R8);
+	R1 = 4;
+	R3 = currPID;
+	R2 = i;
+	call MOD_0;
+	multipop(R1, R2, R3, R4, R5, R7, R8);
+
+	alias fileStatus R9;
+	fileStatus = FILE_STATUS_TABLE + 4*i;
+	if([fileStatus + 1] != -1) then 
+		multipush(R1, R3);
+		R1 = 5;
+		R3 = currPID;
+		R2 = i;
+		call MOD_0;
+		multipop(R1, R3);
+		R11 = -2;
+		goto retLabel;
+	endif;
+
+	// Release all blocks used by the file
+	// Check if block loaded in buffer table and dirty 1 - reset bit to 0
+	i = 8;
+	while(i<12) do
+	alias blockNum R10;
+	blockNum = [inodeEntry + i];   
+	alias buffEntry R12; // R11 used for retLabel
+	buffEntry = BUFFER_TABLE + (blockNum%MAX_BUFFER)*4;
+	if([inodeEntry + i] != -1) then
+		if([buffEntry] == blockNum && [buffEntry + 1] == 1) then
+			[buffEntry + 1] = 0;
+		endif;
+		multipush(R1, R2, R3, R4, R5, R6, R7, R8);
+		R1 = 4;
+		R3 = currPID;
+		R2 = blockNum;
+		call MOD_2;
+		multipop(R1, R2, R3, R4, R5, R6, R7, R8);
+	endif;
+	i = i + 1;
+	endwhile;
+
+	i = 0;
+	while(i<16) do
+		if(i<5) then
+			[ROOT_FILE + inodeIndex*8 + i] = -1;
+		endif;
+		[inodeEntry + i] = -1;
+		i = i + 1;
+	endwhile;
+	[inodeEntry + 2] = 0;
+    [ROOT_FILE + inodeIndex*8 + 2] = 0;
+
+	multipush(R1, R3);
+	R1 = 5;
+	R2 = currPID;
+	call MOD_0;
+	multipop(R1, R3);
+	   
+	R11 = 0;
+	goto retLabel;
+endif;
+
+retLabel:
+	SP = userSP;
+	[procTab + 9] = 0;
+	[[PTBR + 2*(userSP-1)/512]*512 + (userSP-1)%512] = R11;
+	ireturn;
