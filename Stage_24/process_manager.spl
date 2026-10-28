@@ -1,0 +1,152 @@
+//module 1
+alias functionNumber R1;
+alias currentPID R2;
+
+//get pcb
+if (functionNumber == 1) then
+    alias counter R2;
+    counter = 1;
+    
+    while(counter < MAX_PROC_NUM) do
+        if ([PROCESS_TABLE + (counter*16) + 4] == TERMINATED) then
+            break;
+        endif;
+        counter = counter + 1;
+    endwhile;
+
+    if (counter == MAX_PROC_NUM) then
+        R0 = -1;
+    else
+        [PROCESS_TABLE + (counter*16) + 4] = ALLOCATED;
+        [PROCESS_TABLE + (counter*16) + 1] = counter;
+        [PROCESS_TABLE + (counter*16) + 14] = PAGE_TABLE_BASE + (counter*20);
+        [PROCESS_TABLE + (counter*16) + 15] = 10;
+        R0 =  counter;
+    endif;
+endif;
+
+//free user area page
+if (functionNumber == 2) then 
+    breakpoint;
+    alias userAreaPage R3;
+    userAreaPage = [PROCESS_TABLE + (currentPID*16) + 11];
+    
+    alias counter R4;
+    counter = RESOURCE_TABLE_OFFSET;
+    while (counter < 512) do
+        if ([[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 11]*512 + counter] == SEMAPHORE) then 
+            multipush(R0, R1, R2, R3, R4);
+            R1 = 7;
+            R2 = [[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 11]*512 + counter + 1];
+            R3 = [SYSTEM_STATUS_TABLE+1];
+            call RESOURCE_MANAGER;
+            multipop(R0, R1, R2, R3, R4);
+        else
+            if ([[PROCESS_TABLE + [SYSTEM_STATUS_TABLE*16] + 11]*512 + counter] == FILE) then
+                multipush(R0, R1, R2, R3, R4);
+                R1 = 4;
+                R2 = [[PROCESS_TABLE + [SYSTEM_STATUS_TABLE+1]*16 + 11]*512 + counter + 1];
+                call FILE_MANAGER;
+                multipop(R0, R1, R2, R3, R4);
+            endif;
+        endif;
+        counter = counter + 2;
+    endwhile;
+
+    multipush(R0, R1, R2, R3);
+    R1 = 2;
+    R2 = userAreaPage;
+    call MEMORY_MANAGER;
+    multipop(R0, R1, R2, R3);
+    breakpoint;
+endif;
+
+//exit process
+if (functionNumber == 3) then
+    multipush(R0, R1, R2);
+    functionNumber = 4;
+    call PROCESS_MANAGER;
+    multipop(R0, R1, R2);
+    
+    alias userAreaPage R3;
+    userAreaPage = [PROCESS_TABLE + (currentPID*16) + 11];
+    multipush(R0, R1, R2, R3);
+    R1 = 2;
+    R2 = userAreaPage;
+    call MEMORY_MANAGER;
+    multipop(R0, R1, R2, R3);
+
+    if ([PROCESS_TABLE + currentPID*16 + 9] != 9) then 
+        alias counter R3;
+        counter = 0;
+        while (counter < MAX_PROC_NUM) do
+            if ([PROCESS_TABLE + counter*16 + 4] == WAIT_PROCESS && [PROCESS_TABLE + counter*16 + 5] == currentPID) then
+                [PROCESS_TABLE + counter*16 + 4] = READY;
+            endif;
+    
+            if ([PROCESS_TABLE + counter*16 + 2] == currentPID) then
+                [PROCESS_TABLE + counter*16 + 2] = -1;
+            endif;
+
+            counter = counter+1;
+        endwhile;
+    endif;
+
+    [PROCESS_TABLE + (currentPID*16) + 4] = TERMINATED;
+endif;
+
+//free page table
+if (functionNumber == 4) then 
+    [PTBR + 0] = -1;
+    [PTBR + 1] = "0000";
+    [PTBR + 2] = -1;
+    [PTBR + 3] = "0000";
+
+    alias counter R3;
+    counter = 4;
+    while (counter < 20) do
+        if ([PTBR + counter] != -1) then
+            multipush(R0, R1, R2, R3);
+            R1 = 2;
+            R2 = [PTBR + counter];
+            call MEMORY_MANAGER;
+            multipop(R0, R1, R2, R3);
+
+            [PTBR + counter] = -1;
+            [PTBR + counter + 1] = "0000";
+        endif;
+        counter = counter + 2;
+    endwhile;
+
+    //invalidating heap from DISK_MAP_TABLE
+    counter = 2;
+    while (counter < 4) do
+        if ([DISK_MAP_TABLE + currentPID*10 + counter] != -1) then 
+            multipush(R0, R1, R2, R3);
+            R1 = 4;
+            R2 = [DISK_MAP_TABLE + currentPID*10 + counter];
+            call MEMORY_MANAGER;
+            multipop(R0, R1, R2, R3);
+
+            [DISK_MAP_TABLE + currentPID*10 + counter] = -1;
+        endif;
+        counter = counter + 1;
+    endwhile;
+
+    //invalidating stack from DISK_MAP_TABLE
+    counter = 8;
+    while (counter < 10) do
+        if ([DISK_MAP_TABLE + currentPID*10 + counter] != -1) then
+            multipush(R0, R1, R2, R3);
+            R1 = 4;
+            R2 = [DISK_MAP_TABLE + currentPID*10 + counter];
+            call MEMORY_MANAGER;
+            multipop(R0, R1, R2, R3);
+
+            [DISK_MAP_TABLE + currentPID*10 + counter] = -1;
+        endif;
+        counter = counter + 1;
+    endwhile;
+endif;
+breakpoint;
+return;
