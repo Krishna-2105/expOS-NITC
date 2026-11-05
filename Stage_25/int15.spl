@@ -1,0 +1,80 @@
+alias user_sp R1;
+user_sp = SP;
+
+alias pid R2;
+pid = [SYSTEM_STATUS_TABLE + 1];
+
+alias user_id R3;
+user_id = [SYSTEM_STATUS_TABLE];
+
+[PROCESS_TABLE + 16*pid + 9] = 21;
+[PROCESS_TABLE + 16*pid + 13] = user_sp;
+
+SP = [PROCESS_TABLE + 16*pid + 11]*512 - 1;
+
+if(pid != 1 || user_id != 1) then
+    [[PTBR + 2*(user_sp-1)/512]*512 + (user_sp-1)%512] = -1;
+    [PROCESS_TABLE + 16*pid + 9] = 0;
+    SP = user_sp;
+    ireturn;
+endif;
+
+//kill all user processes
+multipush(R1, R2, R3);
+R1 = 5;
+R2 = pid;
+call PROCESS_MANAGER;
+multipop(R1, R2, R3);
+
+R4 = 0;
+while(R4 < MAX_BUFFER) do
+    if([BUFFER_TABLE + 4*R4 + 1] == 1) then
+        multipush(R1, R2, R3, R4);
+        R1 = DISK_STORE;
+        R2 = pid;
+        R3 = BUFFER_BASE + R4; 
+        R4 = [BUFFER_TABLE + 4*R4]; 
+        call DEVICE_MANAGER;
+        multipop(R1, R2, R3, R4);
+    endif;
+    
+    R4 = R4 + 1;
+endwhile;
+
+
+//store Inode table and user table
+multipush(R1, R2, R3);
+R1 = 1;
+R2 = pid; 
+R3 = 59;
+R4 = 3; 
+call DEVICE_MANAGER;
+multipop(R1, R2, R3);
+
+multipush(R1, R2, R3);
+R1 = 1;
+R2 = pid;
+R3 = 60; 
+R4 = 4; 
+call DEVICE_MANAGER;
+multipop(R1, R2, R3);
+
+//Store root file
+multipush(R1, R2, R3);
+R1 = 1;
+R2 = pid;
+R3 = 62;
+R4 = 5;
+call DEVICE_MANAGER;
+multipop(R1, R2, R3);
+
+//Store disk free list
+multipush(R1, R2, R3);
+R1 = 1;
+R2 = pid; 
+R3 = 61;
+R4 = 2; 
+call DEVICE_MANAGER;
+multipop(R1, R2, R3);
+
+halt;
